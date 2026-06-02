@@ -1,0 +1,30 @@
+# Tier routing for qwen35custom gateway (overridable per LAUNCH.md)
+gateway: qwen35custom
+tiers:
+  heavy: qwen3.5-9b-gguf:ud-q4_k_xl
+  light: qwen3.5:0.8b-gguf
+routing:
+  propose: heavy
+  peer_review: heavy
+  json_repair: light
+  block_summary: light
+  shard_synthesis: light
+  research_chat: heavy
+
+# Automatic tier selection when tier=auto (difficulty scoring)
+difficulty:
+  heavy_threshold: 0.55
+  light_threshold: 0.35
+  force_heavy_states:
+    - propose
+  force_light_states:
+    - json_repair
+    - block_summary
+    - shard_synthesis
+  heavy_keywords:
+    - hypothesis
+    - champion
+    - dead_end
+    - refactor
+    - graph
+    - proposal

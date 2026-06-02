@@ -11,6 +11,7 @@ Usage:
   python3 launch.py my-experiment --task task-biomlbench/drug_discovery/tdcommons-lipophilicity-astrazeneca
   python3 launch.py my-experiment --task /absolute/path/to/task-dir
   python3 launch.py my-experiment --output-dir /tmp/runs                  # create in a specific parent dir
+  python3 launch.py smoke_v1 --task task-smoke-local --run               # qwen35custom local FSM
 
 Task directories are bundled as subdirectories of this repo:
   task-protein-gym/           — ProteinGym Spike fitness prediction (evolves repo/kermut.py)
@@ -34,9 +35,9 @@ nearest LAUNCH.md (bounded to this repo), letting a family-level LAUNCH.md
 cover many subtasks while still allowing per-task overrides. Every task must
 ship a LAUNCH.md somewhere on that walk; there is no generic fallback.
 
-For all task types, after launch the orchestrator reads runbook.md + task-profile.md:
-  cd <run-dir>
-  # Open runbook.md in a Claude Code session and execute it step by step.
+For all task types, use the local qwen35custom runtime (default):
+  python launch.py <run-name> --task task-smoke-local [--run]
+  python local/orchestrator/runner.py --focus-root <run-dir> --max-cycles N
 """
 
 import argparse
@@ -86,11 +87,28 @@ _parser.add_argument("--output-dir", default=None, metavar="DIR",
 _parser.add_argument("--protein", default=None, metavar="PROTEIN_ID",
                      help="Protein/assay to focus on, e.g. SPIKE_SARS2_Starr_2020_binding. "
                           "Substituted into task/TASK.md and task/LAUNCH.md after copying.")
+_parser.add_argument(
+    "--runtime",
+    choices=["local"],
+    default="local",
+    help="Local qwen35custom FSM only (Claude/ClawInstitute path removed).",
+)
+_parser.add_argument(
+    "--run",
+    action="store_true",
+    help="After bootstrap, run local/orchestrator/runner.py for --cycles iterations.",
+)
+_parser.add_argument(
+    "--cycles",
+    type=int,
+    default=1,
+    help="Number of FSM iterations when using --run (default: 1).",
+)
 _args = _parser.parse_args()
 
-# Load token after argparse so `--help` works without credentials.
-ADMIN_TOKEN = _load_token()
-HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}", "Content-Type": "application/json"}
+IS_LOCAL_RUNTIME = True
+ADMIN_TOKEN = None
+HEADERS = {}
 
 RUN_NAME = _args.name or f"{TEMPLATE_DIR.name}_{_TIMESTAMP}"
 PARENT_DIR = Path(_args.output_dir).resolve() if _args.output_dir else TEMPLATE_DIR.parent
@@ -135,6 +153,47 @@ if not (_task_path / "TASK.md").exists():
 
 print(f"Creating experiment: {RUN_DIR}")
 RUN_DIR.mkdir(parents=True)
+
+if IS_LOCAL_RUNTIME:
+    import yaml as _yaml_local
+    from local.launch_local import bootstrap_local_run
+
+    _local_task_md = (_task_path / "TASK.md").read_text(encoding="utf-8")
+    _local_parts = _local_task_md.split("---")
+    _local_tt = "optimization"
+    if len(_local_parts) >= 3:
+        _local_fm = _yaml_local.safe_load(_local_parts[1]) or {}
+        _local_tt = _local_fm.get("task_type", "optimization")
+    bootstrap_local_run(TEMPLATE_DIR, RUN_DIR, _task_path, _local_tt)
+    print("\n" + "=" * 60)
+    print("  Launch complete (qwen35custom — no Claude)")
+    print("=" * 60)
+    runner_cmd = (
+        f"python {TEMPLATE_DIR / 'local' / 'orchestrator' / 'runner.py'} "
+        f"--focus-root {RUN_DIR} --max-cycles {_args.cycles}"
+    )
+    if _args.run:
+        print(f"\n  Running FSM ({_args.cycles} cycle(s))...\n")
+        import subprocess
+
+        rc = subprocess.call(
+            [sys.executable, str(TEMPLATE_DIR / "local" / "orchestrator" / "runner.py"),
+             "--focus-root", str(RUN_DIR), "--max-cycles", str(_args.cycles)],
+        )
+        sys.exit(rc)
+    print(f"""
+  Experiment dir: {RUN_DIR}
+  Runtime:        qwen35custom (Tier-1 9B / Tier-2 0.8B by difficulty)
+
+  Run experiments:
+    {runner_cmd}
+
+  Mock mode (no Ollama): set LOCAL_MOCK_LLM=1
+
+  Dashboard: streamlit run {TEMPLATE_DIR / 'local' / 'dashboard' / 'app.py'}
+  (http://localhost:8501)
+""")
+    sys.exit(0)
 
 # ── Detect task type from TASK.md frontmatter (read source before copy) ─────
 import yaml as _yaml

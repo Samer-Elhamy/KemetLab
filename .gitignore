@@ -22,3 +22,6 @@ env/
 
 # Run directories (launch.py creates these as siblings, but guard anyway)
 *_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]/
+
+# Local validation artifacts (not source)
+logs/

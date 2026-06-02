@@ -1,0 +1,1 @@
+Execution is handled by train.py subprocess, not the LLM. This prompt is unused in MVP.

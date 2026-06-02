@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["block_id", "outcome"],
+  "properties": {
+    "block_id": { "type": "string" },
+    "fsm_states_completed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "champion_metric_before": { "type": "number" },
+    "champion_metric_after": { "type": "number" },
+    "outcome": { "type": "string", "enum": ["KEEP", "DISCARD", "ERROR"] },
+    "key_findings": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "type": "string" }
+    },
+    "dead_ends_added": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}
