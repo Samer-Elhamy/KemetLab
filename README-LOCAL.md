@@ -1,6 +1,6 @@
-# AutoScientists — Local (qwen35custom only)
+# KemetLab — Local Autonomous Multi-Agent Lab
 
-This fork **does not use Claude Code or cloud LLMs**. All reasoning runs through **Ollama** and the **`qwen35custom`** gateway.
+This framework runs decentralized self-organizing teams of AI agents using frontier reasoning and smart tier routing.
 
 ## Model tiers (by difficulty)
 

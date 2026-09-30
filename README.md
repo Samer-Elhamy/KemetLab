@@ -1,74 +1,85 @@
-# AutoScientists
+# ⚗️ KemetLab: Self-Organizing Multi-Agent Architecture for Long-Running Scientific Experimentation
 
-> **Local fork (this branch):** Run entirely on **qwen35custom** (Ollama) — no Claude, no port 3000. See **[README-LOCAL.md](README-LOCAL.md)**.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Architecture: MAS-FSM](https://img.shields.io/badge/Architecture-Decentralized%20FSM-emerald.svg)]()
 
-[![Paper](https://img.shields.io/badge/Paper-Arxiv-blue)](https://arxiv.org/abs/2605.28655) [![Project Page](https://img.shields.io/badge/Project-Page-green)](https://autoscientists.openscientist.ai/) [![ClawInstitute](https://img.shields.io/npm/v/clawinstitute?label=ClawInstitute&color=orange)](https://www.npmjs.com/package/clawinstitute) [![ToolUniverse](https://img.shields.io/badge/ToolUniverse-GitHub-181717)](https://github.com/mims-harvard/ToolUniverse)
+> **مشروع تخرج KemetLab للأنظمة الذكية ذاتية التنظيم**
+> معمارية وكلاء ذكاء اصطناعي لامركزية قادرة على إدارة التجارب العلمية المعقدة وطويلة الأمد، تكوين فرق بحث ذاتية، النقد والتحكيم العلمي، وتخزين المعرفة والمسارات المسدودة (Dead-End Memory).
 
-**AutoScientists** is a decentralized team of AI agents for long-running computational scientific experimentation. Unlike prior agent systems that follow a single research trajectory or coordinate through a central planner, AutoScientists agents **self-organize into teams** around promising hypotheses, **critique each other's proposals** before spending experimental compute, and **share successes and failures** so the system avoids redundant exploration and sustains parallel search as evidence accumulates over hours or days.
+---
 
-This repository packages the system as [Claude Code](https://docs.claude.com/claude-code) subagents coordinating through a local [ClawInstitute](https://www.npmjs.com/package/clawinstitute) server (workshops, workspaces, message-board posts). The orchestrator is a pure coordinator — it launches agents and harvests their results, never trains anything itself.
+## 🌟 دليل البدء السريع لزملائي في الفريق (Team Welcome & Quickstart)
+أهلاً بكم يا شباب! المستودع ده تم تجهيزه عشان يشتغل عند أي حد فيكم بسهولة شديدة، وبأقل خطوات ممكنة سواء كان عندكم كارت شاشة خارجي أو شغالين بـ API Cloud.
 
-## Results
+### 🚀 التثبيت والتشغيل في خطوة واحدة (One-Click Setup)
 
-- **BioML-Bench** (24 biomedical ML tasks across biomedical imaging, protein engineering, single-cell omics, drug discovery): 74.4% mean leaderboard percentile, **+8.33%** over the strongest prior AI agent.
-- **nanoGPT training optimization**: **1.9× faster** to a target validation metric; 7 accepted improvements vs. 0 for a single-agent baseline.
-- **ProteinGym** fitness prediction: **+12.5%** on the ACE2-Spike binding assay; **+6.5%** averaged across all 217 assays.
-
-## Tasks
-
-Three bundled task families (per-task data prep and details live in each `task-<name>/README.md`):
-
-- **`task-autoresearch/`** — open-ended nanoGPT `val_bpb` optimization, wrapping [karpathy/autoresearch](https://github.com/karpathy/autoresearch).
-- **`task-biomlbench/`** — 24 biomedical ML benchmarks across drug discovery, protein engineering, single-cell omics, and biomedical imaging.
-- **`task-protein-gym/`** — ProteinGym Spike (SARS-CoV-2) fitness prediction, evolving a Kermut GP baseline.
-
-## Setup
-
-Prerequisites: [Node.js 22+](https://nodejs.org/) (ships with `npx`), Python 3.9+, and the [Claude Code](https://docs.claude.com/claude-code) CLI (`claude`).
-
-```bash
-# Start the local ClawInstitute server (agents will all coordinate through this)
-npx clawinstitute start
-
-# Install Python deps (requests, pyyaml)
-pip install -r requirements.txt
+#### لمستخدمي Windows (PowerShell):
+افتح التيرمينال داخل المجلد وشغل السكريبت:
+```powershell
+.\setup.ps1
 ```
 
-`npx clawinstitute start` downloads the [`clawinstitute`](https://www.npmjs.com/package/clawinstitute) package from npm on first run and starts the server in the foreground; subsequent runs reuse the cache. Prefer a permanent install? `npm install -g clawinstitute`, then `clawinstitute start`.
-
-## Running
-
-From the repo root, in a separate shell:
-
-```bash
-claude -p "Read runbook.md and execute. Task: task-autoresearch. Run name: ar_v1."
-claude -p "Read runbook.md and execute. Task: task-biomlbench/drug_discovery/tdcommons-lipophilicity-astrazeneca. Run name: lipo_v1."
-claude -p "Read runbook.md and execute. Task: task-protein-gym. Run name: spike_v1."
+#### لمستخدمي Windows (CMD / Batch):
+```cmd
+setup.bat
 ```
 
-Each launch materializes a new sibling directory `../<run-name>/` with its own copy of the system, agents, workspace, and logs; the template itself stays clean across runs. Hardware requirements vary per task — see each `task-<name>/README.md`.
+هذا السكريبت يقوم تلقائياً بـ:
+1. إنشاء البيئة الافتراضية `.venv` وتفعيلها.
+2. ترقية `pip` وتثبيت كافة المكتبات المطلوبة من `requirements.txt`.
+3. فحص سلامة النظام وتأكيد نجاح التثبيت.
 
-## Adding a new task
+---
 
-Drop a `task-<name>/` directory at the repo root with two files:
+## 🧠 دورة حياة المنظومة (How It Works)
 
-1. **`TASK.md`** — task spec. YAML frontmatter should set `task_type` (one of `optimization`, `biomlbench`, `proteingym`) and `name`; see the three bundled `task-*/TASK.md` files for the conventional shape. The markdown body describes the problem, data, and constraints for the agents to read.
-2. **`LAUNCH.md`** — task profile filling in the 13 hooks `runbook.md` references (`launch_command`, `discussion_policy`, `gpu_dispatch`, `champion_promotion`, `stagnation_response`, `exit_condition`, etc.). Easiest path: copy the bundled `task-<name>/LAUNCH.md` closest to your task and edit the hooks that need to differ.
+المنظومة تعمل عبر آلة حالة منتهية لامركزية (**FSM**):
+1. **طرح الفرضيات (`PROPOSE`):** وكلاء البحث يقترحون فرضيات وأكواد جديدة استناداً لهدف التجربة.
+2. **المناظرة والنقد العلمي (`REVIEW`):** وكلاء التحكيم ينقدون الفكرة ويصوتون عليها قبل حرق أي حوسبة.
+3. **التنفيذ المعزول (`RUN_TEAM`):** تشغيل الكود في بيئة معزولة وقياس النتائج بدقة.
+4. **الترقية والذاكرة (`CHECK_RESULTS`):**
+   - ترقية التجربة كـ **Champion** إذا حققت نتيجة أفضل.
+   - حفظ الفشل في سجل المسارات المسدودة (**Dead-End Memory** في `graph.db`) لتفادي تكرار الخطأ.
+5. **كاشف الركود (`STAGNATION`):** عند توقف التحسن، يتفكك الفريق تلقائياً ويعاد تشكيل جولة جديدة.
 
-Optionally add a setup script to fetch baseline code or data — see `task-autoresearch/download_repo.sh` or `task-protein-gym/download_data.sh` for examples.
+---
 
-Then launch with `--task task-<name>`. `launch.py` walks up from the `--task` path to find the nearest `LAUNCH.md`, so a family-level `LAUNCH.md` can cover many subtasks (as `task-biomlbench/` does for its 24 subtasks) while any specific subtask can override by shipping its own `LAUNCH.md`.
+## 🛠️ كيفية تشغيل تجربة (Running Experiments)
 
-## Citation
-
-```bibtex
-@misc{gao2026autoscientistsselforganizingagentteams,
-      title={AutoScientists: Self-Organizing Agent Teams for Long-Running Scientific Experimentation},
-      author={Shanghua Gao and Ada Fang and Marinka Zitnik},
-      year={2026},
-      eprint={2605.28655},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2605.28655},
-}
+### 1. تجربة سريعة للتأكد من سلامة النظام (Smoke Test):
+```powershell
+.\.venv\Scripts\Activate.ps1
+python launch.py my_run --task task-smoke-local --run --cycles 3
 ```
+
+### 2. تشغيل لوحة التحكم والمراقبة التفاعلية (Streamlit Dashboard):
+```powershell
+streamlit run local/dashboard/app.py
+```
+ثم افتح المتصفح على: `http://localhost:8501`
+
+---
+
+## 📁 هيكل المشروع (Project Structure)
+
+```text
+KemetLab/
+├── launch.py                  # نقطة الانطلاق الرئيسية لتشغيل المهام
+├── setup.ps1 / setup.bat      # سكريبت الإعداد السريع بضغطة زر
+├── requirements.txt           # المكتبات والاعتماديات البرمجية
+├── local/
+│   ├── orchestrator/          # المحرك التنفيذي وإدارة آلة الحالة (FSM & Team Runner)
+│   ├── memory/                # قاعدة المعرفة والرسم البياني (Graph-RAG & graph.db)
+│   ├── llm/                   # بوابة توجيه النماذج (Gemini, Claude, OpenRouter)
+│   ├── dashboard/             # لوحة المتابعة التفاعلية والشات الذكي (Streamlit)
+│   ├── prompts/               # نصوص التوجيه الذكية للوكلاء (Meta & Worker prompts)
+│   └── schemas/               # مخططات التحقق من صحة JSON (Schemas)
+├── task-smoke-local/          # بيئة تجارب سريعة خفيفة للاختبار
+└── docs/                      # التوثيق المعماري وتفاصيل التشغيل
+```
+
+---
+
+## 🤝 المساهمة والتطوير (Contributing)
+يرجى قراءة [CONTRIBUTING.md](CONTRIBUTING.md) للتعرف على طريقة تنظيم الفروع (Branches) وإرسال التعديلات (Pull Requests).

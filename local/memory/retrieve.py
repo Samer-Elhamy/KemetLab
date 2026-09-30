@@ -37,7 +37,11 @@ def global_context(graph: GraphStore, k_blocks: int = 3, k_nodes: int = 8) -> st
     parts = []
     champ = graph.get_node("champion")
     if champ:
-        parts.append(f"Champion val_loss={champ.get('val_loss')} params={champ.get('params')}")
+        parts.append(
+            "Champion (beat this val_loss): "
+            f"val_loss={champ.get('val_loss')} params={champ.get('params')}. "
+            "Do NOT repeat lr=0.01, hidden_dim=32, steps=50."
+        )
     for de in graph.nodes_by_kind("DeadEnd", limit=k_nodes):
         parts.append(f"DeadEnd: {de.get('reason', de)}")
     for summ in graph.nodes_by_kind("BlockSummary", limit=k_blocks):

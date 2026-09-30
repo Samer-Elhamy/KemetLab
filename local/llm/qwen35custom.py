@@ -1,7 +1,8 @@
-"""Tier routing for the qwen35custom Ollama gateway."""
+"""Tier routing for Google Gemini gateway (Heavy & Light)."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -10,16 +11,17 @@ import yaml
 _ROUTING_CACHE: dict[str, Any] | None = None
 
 DEFAULT_ROUTING = {
-    "gateway": "qwen35custom",
+    "gateway": "gemini",
     "tiers": {
-        "heavy": "qwen3.5-9b-gguf:ud-q4_k_xl",
-        "light": "qwen3.5:0.8b-gguf",
+        "heavy": "gemini-3.8-flash-high",
+        "light": "gemini-3.8-flash-lite",
     },
     "routing": {
         "propose": "heavy",
         "peer_review": "heavy",
         "json_repair": "light",
         "block_summary": "light",
+        "research_chat": "heavy",
     },
 }
 
@@ -37,21 +39,24 @@ def load_routing(config_path: Path | None = None) -> dict[str, Any]:
 
 
 def resolve_model(fsm_state: str, tier: str | None = None, config_path: Path | None = None) -> str:
-    """Return Ollama model tag for gateway or resolved tier backend."""
+    """Return Google Gemini model name for the requested tier."""
     cfg = load_routing(config_path)
     tiers = cfg.get("tiers", DEFAULT_ROUTING["tiers"])
     routing = cfg.get("routing", DEFAULT_ROUTING["routing"])
-    gateway = cfg.get("gateway", "qwen35custom")
 
     if tier == "heavy":
-        return tiers.get("heavy", DEFAULT_ROUTING["tiers"]["heavy"])
+        return os.environ.get("GEMINI_HEAVY_MODEL") or tiers.get(
+            "heavy", "gemini-3.8-flash-high"
+        )
     if tier == "light":
-        return tiers.get("light", DEFAULT_ROUTING["tiers"]["light"])
+        return os.environ.get("GEMINI_LIGHT_MODEL") or tiers.get(
+            "light", "gemini-3.1-flash-lite"
+        )
 
     route_key = fsm_state.replace("-", "_")
     tier_name = routing.get(route_key, routing.get(fsm_state, "heavy"))
-    return tiers.get(tier_name, gateway)
+    return tiers.get(tier_name, "gemini-3.8-flash-high")
 
 
 def gateway_name(config_path: Path | None = None) -> str:
-    return load_routing(config_path).get("gateway", "qwen35custom")
+    return "gemini"

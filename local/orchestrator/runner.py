@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ from local.memory import GraphStore
 from local.memory import blocks as block_mod
 from local.memory import ingest as ingest_mod
 from local.memory import shard_commit
-from local.orchestrator import critical_path, fsm, promotion, shards
+from local.orchestrator import agent_tracker, critical_path, fsm, promotion, shards
 
 
 def _log_session(focus_root: Path, record: dict) -> None:
@@ -37,19 +38,71 @@ def _log_experiment(focus_root: Path, record: dict) -> None:
         f.write(json.dumps(record) + "\n")
 
 
+def _update_job_phase(focus_root: Path, cycle: int, agent_id: str, detail: str) -> None:
+    from local.dashboard.job_status import read_job_status, write_job_status
+
+    st = read_job_status(focus_root)
+    st["current_phase"] = detail
+    st["current_agent"] = agent_id
+    st["current_cycle"] = cycle
+    write_job_status(focus_root, st)
+
+
 def _run_train(focus_root: Path, params: dict) -> dict:
+    exec_mode = os.environ.get("AUTOSCIENTISTS_EXEC_MODE", "local").strip().lower()
+    no_local_fallback = os.environ.get(
+        "AUTOSCIENTISTS_NO_LOCAL_FALLBACK", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if exec_mode == "kaggle":
+        from local.orchestrator.kaggle_runner import run_train_kaggle
+
+        competition = (
+            os.environ.get("AUTOSCIENTISTS_COMPETITION")
+            or os.environ.get("KAGGLE_COMPETITION")
+            or "playground-series-s6e9"
+        ).strip()
+        timeout = int(os.environ.get("AUTOSCIENTISTS_KAGGLE_TIMEOUT", "7200"))
+        try:
+            print(
+                f"[runner] Kaggle remote exec competition={competition} timeout={timeout}s",
+                flush=True,
+            )
+            return run_train_kaggle(
+                focus_root,
+                params,
+                timeout=timeout,
+                competition=competition,
+            )
+        except Exception as e:
+            if no_local_fallback or exec_mode == "kaggle":
+                # Never burn local GPU/CPU on full training when Kaggle mode is requested.
+                raise RuntimeError(
+                    f"Remote Kaggle execution failed (local fallback disabled): {e}"
+                ) from e
+            print(
+                f"[runner] Remote Kaggle execution failed: {e}. Falling back to local execution.",
+                file=sys.stderr,
+            )
+
     train_py = focus_root / "task" / "repo" / "train.py"
     if not train_py.exists():
         train_py = focus_root / "repo" / "train.py"
-    env = {**dict(__import__("os").environ), "SMOKE_LR": str(params.get("lr", 0.05))}
+    env = {**dict(os.environ), "SMOKE_LR": str(params.get("lr", 0.05))}
     env["SMOKE_HIDDEN"] = str(params.get("hidden_dim", 16))
     env["SMOKE_STEPS"] = str(params.get("steps", 30))
+    for k, v in params.items():
+        env[str(k).upper()] = str(v)
+
+    py_exe = "C:/Users/Samer/kaggle/.venv/Scripts/python.exe"
+    if not Path(py_exe).exists():
+        py_exe = sys.executable
+
     proc = subprocess.run(
-        [sys.executable, str(train_py)],
+        [py_exe, str(train_py)],
         cwd=str(train_py.parent),
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=600,
         env=env,
     )
     if proc.returncode != 0:
@@ -62,6 +115,13 @@ def _run_train(focus_root: Path, params: dict) -> dict:
 
 def run_iteration(focus_root: Path, cycle: int = 1) -> dict:
     focus_root = Path(focus_root).resolve()
+    import os
+
+    if os.environ.get("LOCAL_TEAM_MODE", "1").lower() not in ("0", "false", "no"):
+        from local.orchestrator.team_runner import run_team_iteration
+
+        return run_team_iteration(focus_root, cycle=cycle)
+
     task_md = (focus_root / "task" / "TASK.md").read_text(encoding="utf-8")
     store = GraphStore(focus_root)
     try:
@@ -76,10 +136,19 @@ def _run_iteration_inner(
     task_md: str,
     cycle: int,
 ) -> dict:
+    agent_tracker.set_agent(
+        focus_root, "orchestrator", "working", f"بدء الدورة {cycle}", cycle=cycle
+    )
+    _update_job_phase(focus_root, cycle, "orchestrator", "بدء الدورة")
+
     block = block_mod.open_block()
     champ_before = promotion.load_champion_json(focus_root).get("val_loss", float("inf"))
 
     # Phase 1 — CPU: shard accumulation + critical path prep
+    agent_tracker.set_all_idle_except(
+        focus_root, "shard_cpu", "تحليل Graph-RAG والمسار الحرج", cycle
+    )
+    _update_job_phase(focus_root, cycle, "shard_cpu", "تحليل Graph-RAG")
     shard_propose = shards.create_shard("propose", task_md[:2000])
     shard_review = shards.create_shard("peer_review")
     shard_ingest = shards.create_shard("ingest")
@@ -102,15 +171,33 @@ def _run_iteration_inner(
 
     # Phase 2 — GPU: reasoning burst (Propose)
     print("[FSM] state=Propose")
-    proposal = fsm.run_propose(store, task_md)
+    agent_tracker.set_all_idle_except(
+        focus_root, "propose", "توليد اقتراح معاملات (qwen35custom)", cycle
+    )
+    _update_job_phase(focus_root, cycle, "propose", "Propose — qwen35custom")
+    proposal = fsm.run_propose(store, task_md, focus_root=focus_root, cycle=cycle)
     if proposal.get("status") == "error":
         print(f"[FSM] Propose failed: {proposal.get('reason')}")
+        agent_tracker.set_agent(
+            focus_root, "propose", "error", proposal.get("reason", "error")[:200], cycle=cycle
+        )
         return {"state": "error", "outcome": "ERROR", "reason": proposal.get("reason")}
+    agent_tracker.set_agent(
+        focus_root,
+        "propose",
+        "done",
+        f"params={proposal.get('params', {})}",
+        cycle=cycle,
+    )
     shard_propose.append(json.dumps(proposal))
     syn_p = shards.synthesize_shard_light(shard_propose)
     shard_commit.commit_shard_synthesis(store, shard_propose.shard_id, "propose", syn_p)
 
     print("[FSM] state=PeerReview")
+    agent_tracker.set_all_idle_except(
+        focus_root, "peer_review", "مراجعة الاقتراح", cycle
+    )
+    _update_job_phase(focus_root, cycle, "peer_review", "PeerReview")
     review = fsm.run_peer_review(store, task_md, proposal)
     shard_review.append(json.dumps(review))
     syn_r = shards.synthesize_shard_light(shard_review)
@@ -118,19 +205,34 @@ def _run_iteration_inner(
 
     if not review.get("approved", False):
         print("[FSM] PeerReview rejected — skipping Execute")
+        agent_tracker.set_agent(
+            focus_root,
+            "peer_review",
+            "done",
+            "مرفوض — " + "; ".join(review.get("reasons", [])[:2])[:180],
+            cycle=cycle,
+        )
+        agent_tracker.set_agent(focus_root, "execute", "skipped", "لم تُوافق المراجعة", cycle=cycle)
         block.mark_state("PeerReview")
         summary = {
             "outcome": "DISCARD",
             "key_findings": review.get("reasons", ["rejected"]),
         }
         block_mod.close_block(store, block, summary, champ_before, champ_before)
+        agent_tracker.mark_cycle_done(focus_root, cycle, "DISCARD — رفض المراجعة")
         return {"state": "UpdateGraph", "outcome": "DISCARD", "approved": False}
+
+    agent_tracker.set_agent(focus_root, "peer_review", "done", "موافق — انتقل للتنفيذ", cycle=cycle)
 
     # Phase 2b — VRAM purge
     unload_model_from_vram()
 
     # Phase 3 — Sandbox training
     print("[FSM] state=Execute")
+    agent_tracker.set_all_idle_except(
+        focus_root, "execute", "تشغيل train.py", cycle
+    )
+    _update_job_phase(focus_root, cycle, "execute", "Execute — train.py")
     if cp.serial_collapse:
         print("[FSM] SERIAL_COLLAPSE flagged — Tier-1 refactor nudge via qwen35custom")
         system, prompt = build_prompt("propose", store, task_md)
@@ -146,11 +248,18 @@ def _run_iteration_inner(
 
     result = _run_train(focus_root, proposal.get("params", {}))
     val_loss = float(result["val_loss"])
+    agent_tracker.set_agent(
+        focus_root, "execute", "done", f"val_loss={val_loss:.6f}", cycle=cycle
+    )
     champ = promotion.load_champion_json(focus_root)
     improved = val_loss < champ.get("val_loss", float("inf"))
     outcome = "KEEP" if improved else "DISCARD"
 
     print("[FSM] state=IngestResult")
+    agent_tracker.set_all_idle_except(
+        focus_root, "ingest", "تسجيل النتيجة في الذاكرة", cycle
+    )
+    _update_job_phase(focus_root, cycle, "ingest", "Ingest")
     shard_ingest.append(json.dumps(result))
     syn_i = shards.synthesize_shard_light(shard_ingest)
     shard_commit.commit_shard_synthesis(store, shard_ingest.shard_id, "ingest", syn_i)
@@ -169,7 +278,11 @@ def _run_iteration_inner(
     )
 
     champ_after = promotion.load_champion_json(focus_root).get("val_loss", val_loss)
+    agent_tracker.set_agent(focus_root, "ingest", "done", f"outcome={outcome}", cycle=cycle)
     print("[FSM] state=UpdateGraph")
+    agent_tracker.set_all_idle_except(
+        focus_root, "graph", "تحديث Graph-RAG والـ champion", cycle
+    )
     summary = {
         "outcome": outcome,
         "key_findings": [f"val_loss={val_loss}", f"exp_id={exp_id}"],
@@ -200,6 +313,10 @@ def _run_iteration_inner(
     )
 
     print("[FSM] state=UpdateGraph complete")
+    agent_tracker.set_agent(focus_root, "graph", "done", f"champion={champ_after}", cycle=cycle)
+    agent_tracker.mark_cycle_done(
+        focus_root, cycle, f"اكتملت — {outcome} val_loss={val_loss:.6f}"
+    )
     return {"state": "done", "outcome": outcome, "val_loss": val_loss}
 
 

@@ -20,22 +20,10 @@ def default_search_roots(template_dir: Path) -> list[Path]:
 
 
 def discover_runs(search_roots: list[Path] | None = None, template_dir: Path | None = None) -> list[Path]:
-    """Find experiment directories that have local run logs."""
-    template_dir = template_dir or Path(__file__).resolve().parents[2]
-    roots = search_roots or default_search_roots(template_dir)
-    found: dict[str, Path] = {}
-    for root in roots:
-        if not root.is_dir():
-            continue
-        try:
-            for child in root.iterdir():
-                if not child.is_dir():
-                    continue
-                if (child / "logs" / "experiments.jsonl").exists():
-                    found[str(child.resolve())] = child.resolve()
-        except PermissionError:
-            continue
-    return sorted(found.values(), key=lambda p: p.stat().st_mtime, reverse=True)
+    """Find saved mission / experiment directories."""
+    from local.dashboard.missions import discover_missions
+
+    return discover_missions(template_dir)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

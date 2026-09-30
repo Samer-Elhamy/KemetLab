@@ -1,8 +1,11 @@
-# Tier routing for qwen35custom gateway (overridable per LAUNCH.md)
-gateway: qwen35custom
+# Tier routing via Google Gemini (CPA-GUI Proxy / AI Studio)
+# Ollama completely disabled by user directive
+gateway: gemini
+
 tiers:
-  heavy: qwen3.5-9b-gguf:ud-q4_k_xl
-  light: qwen3.5:0.8b-gguf
+  heavy: gemini-3.8-flash-high
+  light: gemini-3.8-flash-lite
+
 routing:
   propose: heavy
   peer_review: heavy
@@ -11,12 +14,13 @@ routing:
   shard_synthesis: light
   research_chat: heavy
 
-# Automatic tier selection when tier=auto (difficulty scoring)
 difficulty:
   heavy_threshold: 0.55
   light_threshold: 0.35
   force_heavy_states:
     - propose
+    - research_chat
+    - peer_review
   force_light_states:
     - json_repair
     - block_summary

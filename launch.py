@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch a fresh AutoScientists experiment from this template.
+"""Launch a fresh KemetLab experiment from this template.
 
 Creates a NEW experiment directory, copies system/task files into it, then
 bootstraps agents, workspace, and kickoff post.
@@ -77,7 +77,7 @@ def _load_token():
 
 _TIMESTAMP = datetime.now(timezone.utc).strftime("%m%d_%H%M")
 
-_parser = argparse.ArgumentParser(description="Launch a fresh AutoScientists experiment.")
+_parser = argparse.ArgumentParser(description="Launch a fresh KemetLab experiment.")
 _parser.add_argument("name", nargs="?", default=None,
                      help="Experiment name (default: {template}_{timestamp})")
 _parser.add_argument("--task", default=None,

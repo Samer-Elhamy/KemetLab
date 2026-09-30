@@ -10,7 +10,7 @@
       "properties": {
         "lr": { "type": "number", "exclusiveMinimum": 0 },
         "hidden_dim": { "type": "integer", "minimum": 4, "maximum": 256 },
-        "steps": { "type": "integer", "minimum": 1, "maximum": 500 }
+        "steps": { "type": "integer", "minimum": 1, "maximum": 1000 }
       }
     },
     "rationale": { "type": "string" }
