@@ -37,11 +37,17 @@ if (Test-Path "requirements.txt") {
 Write-Host "[*] Running sanity tests..." -ForegroundColor Cyan
 python -m unittest tests/test_local_runtime.py
 
+# 6. Verify Native Embedded EasyCLI / Antigravity Gateway
+Write-Host "[*] Checking Native Antigravity / CPA Engine..." -ForegroundColor Cyan
+python -c "from local.cpa.cpa_service import get_cpa_status; st = get_cpa_status(); print('Native CPA Online:', st['online'], '| Binary present:', st['binary_present'])"
+
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "   SUCCESS: KemetLab is fully configured and ready!" -ForegroundColor Green
-    Write-Host "   Run a smoke test: python launch.py my_run --task task-smoke-local --run" -ForegroundColor Yellow
+    Write-Host "   - To launch Cockpit GUI: run Start_KemetLab_Cockpit.bat" -ForegroundColor Yellow
+    Write-Host "   - To manage Antigravity accounts: use Cockpit GUI or Streamlit" -ForegroundColor Yellow
+    Write-Host "   - Run a smoke test: python launch.py my_run --task task-smoke-local --run" -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
 } else {
     Write-Host ""

@@ -618,8 +618,8 @@ def _main_ui() -> None:
         st.markdown("**سطر أوامر (اختياري):**")
         st.code("python launch.py NAME --task task-smoke-local --run", language=None)
 
-    tab_now, tab_run, tab_missions, tab_agents, tab_chat, tab_dash = st.tabs(
-        ["🟢 الآن", "🚀 تشغيل", "📋 المهام", "👥 الوكلاء", "💬 بحث", "📊 النتائج"]
+    tab_now, tab_run, tab_missions, tab_agents, tab_chat, tab_dash, tab_antigravity = st.tabs(
+        ["🟢 الآن", "🚀 تشغيل", "📋 المهام", "👥 الوكلاء", "💬 بحث", "📊 النتائج", "🌌 حسابات Antigravity"]
     )
 
     with tab_now:
@@ -708,6 +708,10 @@ def _main_ui() -> None:
             _render_metrics_tab(run_dir)
         else:
             st.info("اختر مهمة من الشريط الجانبي.")
+
+    with tab_antigravity:
+        from local.dashboard.cpa_panel import render_cpa_panel
+        render_cpa_panel(key_suffix="app_tab")
 
 
 def main() -> None:

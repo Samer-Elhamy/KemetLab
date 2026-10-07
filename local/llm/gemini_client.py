@@ -54,8 +54,16 @@ def generate_json(
     max_tokens: int = 1024,
 ) -> dict[str, Any]:
     """Execute JSON generation via Gemini model, trying local proxy first or direct API key."""
-    # 1. Try local OpenAI-compatible Gemini proxy (CPA-GUI at 127.0.0.1:8317)
+    # Ensure embedded CPA proxy is running if target is localhost:8317
     proxy_url = f"{_proxy_base_url()}/chat/completions"
+    if "127.0.0.1:8317" in proxy_url:
+        try:
+            from local.cpa.cpa_service import is_cpa_running, start_cpa_server
+            if not is_cpa_running():
+                start_cpa_server()
+        except Exception:
+            pass
+
     headers = {
         "Authorization": f"Bearer {_proxy_api_key()}",
         "Content-Type": "application/json",

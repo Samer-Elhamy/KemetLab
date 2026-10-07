@@ -7,6 +7,9 @@ local/config/*.key
 .env.*
 *.token
 agent_tokens.json
+tools/cpa/oauth/
+tools/cpa/cpa-core/cli-proxy-api.exe
+oauth/
 
 # Python
 __pycache__/
